@@ -14,7 +14,10 @@ const PACKAGE_NAME = '@hagicode/hagi-release-drafter';
 const REPOSITORY = 'HagiCode-org/hagi-release-drafter';
 const WORKFLOW = 'npm-publish.yml';
 const REGISTRY = 'https://registry.npmjs.org';
-const DEV_SHA = /^[0-9a-f]{7}$/;
+// A sha with a letter in it is already an alphanumeric SemVer identifier. An all-digit sha would be read as a number
+// (and refused outright when it starts with `0`), so only that case gets a `g` prefix, as in `git describe`.
+const DEV_SHA = /^(?:[0-9a-f]{7}|g[0-9]{7})$/;
+const ALL_DIGITS = /^[0-9]+$/;
 
 /**
  * True for a publishable version: a stable `X.Y.Z`, or `X.Y.Z-dev.<run>.<attempt>.<sha7>`. SemVer parsing rejects leading
@@ -61,7 +64,8 @@ export function nextBaseVersion(releases: ReleaseInfo[], currentVersion: string)
 
 /** Development version `<base>-dev.<run>.<attempt>.<sha7>`; unique per workflow attempt, so reruns never collide. */
 export function devVersion(base: string, env: Record<string, string | undefined>): string {
-  const sha = env.GITHUB_SHA?.slice(0, 7).toLowerCase();
+  const raw = env.GITHUB_SHA?.slice(0, 7).toLowerCase();
+  const sha = raw !== undefined && ALL_DIGITS.test(raw) ? `g${raw}` : raw;
   const version = `${base}-dev.${env.GITHUB_RUN_NUMBER}.${env.GITHUB_RUN_ATTEMPT}.${sha}`;
   if (!isPublishVersion(version)) throw new Error('GITHUB_RUN_NUMBER, GITHUB_RUN_ATTEMPT, and GITHUB_SHA are required');
   return version;

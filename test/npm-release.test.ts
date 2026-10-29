@@ -29,6 +29,9 @@ test('devVersion composes run, attempt and a short sha, and rejects missing CI v
     devVersion('0.1.3', { GITHUB_RUN_NUMBER: '42', GITHUB_RUN_ATTEMPT: '2', GITHUB_SHA: 'ABC1234DEF5678' }),
     '0.1.3-dev.42.2.abc1234',
   );
+  // An all-digit or zero-led sha must stay a valid SemVer identifier (it was refused as a bare number).
+  assert.equal(devVersion('0.1.3', { GITHUB_RUN_NUMBER: '42', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: '1008756aaaa' }), '0.1.3-dev.42.1.g1008756');
+  assert.equal(devVersion('0.1.3', { GITHUB_RUN_NUMBER: '42', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: '0123456aaaa' }), '0.1.3-dev.42.1.g0123456');
   assert.throws(() => devVersion('0.1.3', { GITHUB_RUN_NUMBER: '42' }), /required/);
   assert.throws(() => devVersion('0.1.3', { GITHUB_RUN_NUMBER: '0', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: 'abc1234' }), /required/);
 });
@@ -58,7 +61,7 @@ test('the publish workflow grants OIDC, runs only for main pushes and stable rel
   assert.match(workflow.jobs['publish-release'].if ?? '', /!github\.event\.release\.draft/);
   for (const [name, distTag] of [['publish-dev', 'dev'], ['publish-release', 'latest']] as const) {
     const runs = workflow.jobs[name].steps.map((step) => step.run ?? '');
-    const test = runs.findIndex((run) => run.includes('npm test'));
+    const test = runs.findIndex((run) => run.includes('pnpm test'));
     const publish = runs.findIndex((run) => run.includes(`npm-release.ts publish ${distTag}`));
     assert.ok(test >= 0 && publish > test, `${name} must test before it publishes`);
   }
@@ -70,8 +73,8 @@ test('the maintainer release script is kept out of the published tarball', () =>
 });
 
 test('isPublishVersion accepts stable and dev versions only', () => {
-  for (const ok of ['0.1.0', '1.20.3', '0.1.3-dev.42.2.abc1234']) assert.equal(isPublishVersion(ok), true, ok);
-  for (const bad of ['v1.0.0', ' 1.0.0', '1.0', '01.0.0', '1.0.0-beta.1', '1.0.0+build', '1.0.0-dev.0.1.abc1234', '1.0.0-dev.1.1.ABC1234', '1.0.0-dev.1.1.abc123', '1.0.0-dev.1.1.abc1234.5']) {
+  for (const ok of ['0.1.0', '1.20.3', '0.1.3-dev.42.2.abc1234', '0.1.3-dev.42.1.0a9f22f', '0.1.3-dev.42.1.g1008756', '0.1.3-dev.42.1.g0123456']) assert.equal(isPublishVersion(ok), true, ok);
+  for (const bad of ['v1.0.0', ' 1.0.0', '1.0', '01.0.0', '1.0.0-beta.1', '1.0.0+build', '1.0.0-dev.0.1.abc1234', '1.0.0-dev.1.1.ABC1234', '1.0.0-dev.1.1.abc123', '1.0.0-dev.1.1.abc1234.5', '1.0.0-dev.1.1.1008756', '1.0.0-dev.1.1.0123456', '1.0.0-dev.1.1.gabc1234']) {
     assert.equal(isPublishVersion(bad), false, bad);
   }
 });
